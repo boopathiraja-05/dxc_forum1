@@ -1,53 +1,59 @@
 package com.dxc.forum.controller;
 
 
+
+import com.dxc.forum.entity.Role;
 import com.dxc.forum.entity.User;
+import com.dxc.forum.jwt.JwtTokenProvider;
 import com.dxc.forum.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
-import javax.annotation.PostConstruct;
-import java.util.List;
+import java.security.Principal;
+import java.time.LocalDateTime;
 
 @RestController
-@CrossOrigin(origins = "*")
 public class UserController {
+
+    @Autowired
+    private JwtTokenProvider tokenProvider;
 
     @Autowired
     private UserService userService;
 
-    @PostConstruct
-    public void initRolesAndUsers(){
-        userService.initRolesAndUser();
+
+    @PostMapping("/api/user/registration")
+    public ResponseEntity<?> register(@RequestBody User user){
+        if(userService.findByUsername(user.getUsername())!=null){
+            return new ResponseEntity<>(HttpStatus.CONFLICT);
+        }
+		//default role.
+        user.setRole(Role.ADMIN);
+        return new ResponseEntity<>(userService.saveUser(user), HttpStatus.CREATED);
     }
 
-    @PostMapping({"/registerNewUser"})
-    public User registerNewUser(@RequestBody User user){
-        return userService.registerNewUser(user);
+    @GetMapping("/api/user/login")
+    public ResponseEntity<?> getUser(Principal principal){
+		//principal = httpServletRequest.getUserPrincipal.
+        if(principal == null){
+            //logout will also use here so we should return ok http status.
+            return ResponseEntity.ok(principal);
+        }
+        UsernamePasswordAuthenticationToken authenticationToken =
+                (UsernamePasswordAuthenticationToken) principal;
+        User user = userService.findByUsername(authenticationToken.getName());
+        user.setToken(tokenProvider.generateToken(authenticationToken));
+
+        return new ResponseEntity<>(user, HttpStatus.OK);
     }
 
-    @PostMapping({"/registerNewAdmin"})
-    public User registerNewAdmin(@RequestBody User user){
-        return userService.registerNewAdmin(user);
-    }
 
-    @PostMapping({"/all"})
-    public List<User> getAll(){
-        return this.userService.getAll();
-    }
 
-    @GetMapping({"/forAdmin"})
-    @PreAuthorize("hasRole('Admin')")
-    public String forAdmin(){
-        return "this url is only accessible to admin ";
     }
-
-    @GetMapping({"/forUser"})
-    @PreAuthorize("hasRole('User')")
-    public String forUser(){
-        return  "This url is only accessible to user";
-    }
-
-}
 
